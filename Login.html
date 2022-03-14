@@ -92,7 +92,7 @@
                 $('#Message').html('')
                 let Data = resultData.resp.Data;
                 localStorage.setItem("username", Data.Name);
-                localStorage.setItem("ID", Data.UserId);
+                localStorage.setItem("ID", Data.UserID);
                 NewEntryNotification(Data.Name);
                 window.location = "/";
             }

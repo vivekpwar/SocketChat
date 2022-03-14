@@ -95,7 +95,7 @@ app.post('/Add', async (req, res) => {
                 }else if(res.insertId){
                     resp.Message = 'Registration successfully';
                     resp.Status = '1';
-                    let query = `select * from userlist as ul  where ul.UserId=?`
+                    let query = `select * from userlist as ul  where ul.UserID=?`
                     UserData = await sqlhelper.select(query, [res.insertId], (err, res) => {
                         if (err) {
                             console.log(err); 
@@ -113,7 +113,7 @@ app.post('/Add', async (req, res) => {
                 }
             });
             SendID = ID;
-            resp.Data.UserId = ID;
+            resp.Data.UserID = ID;
         }
         // console.log("ID--" + ID);
     }
@@ -137,12 +137,12 @@ app.post('/checkUsername', async (req, res) => {
                 console.log(err); 
                 return -1;
             }else if(res.length > 0){
-                SendID = res[0].UserId
+                SendID = res[0].UserID
                 resp.Data = res[0];
                 resp.Message = 'Login successfully';
                 resp.Status = '1';
                 if(SendID){
-                    let Data = await sqlhelper.update('userlist',{'Status':'1'},{'UserId':SendID}, (err, res) => {
+                    let Data = await sqlhelper.update('userlist',{'Status':'1'},{'UserID':SendID}, (err, res) => {
                     });
                 }
                 return res[0];
@@ -165,7 +165,7 @@ app.post('/GetData', async (req, res) => {
     }else{
         where += ` AND ch.RecID = 0`  
     }
-    let query = `select ch.IsRead,ch.ChatID,ch.UserID,ch.RecID,ch.Message,DATE_FORMAT(ch.Date,"%k:%i") as Date,ul.UserId,ul.Name,ul.EntryDate,ul.Status from chating as ch left join userlist as ul on ul.UserId=ch.UserID where 1 ${where}`
+    let query = `select ch.IsRead,ch.ChatID,ch.UserID,ch.RecID,ch.Message,DATE_FORMAT(ch.Date,"%k:%i") as Date,ul.UserID,ul.Name,ul.EntryDate,ul.Status from chating as ch left join userlist as ul on ul.UserID=ch.UserID where 1 ${where}`
     // console.log(query);
     let Data = await sqlhelper.select(query, [], (err, res) => {
         if (err) {
@@ -184,37 +184,41 @@ app.post('/GetData', async (req, res) => {
 })
 
 app.post('/check', async (req, res) => {
-    let query = `select * from userlist where 1 AND UserId = ?`
+    let query = `select * from userlist where 1 AND UserID = ?`
     let Data = await sqlhelper.select(query, [req.body.name], (err, resp) => {
         if (err) {
             return -1;
         }else if(resp.length > 0){
-            // sockets['id'] = resp[0].UserId;
+            // sockets['id'] = resp[0].UserID;
             return 1;
         }else{
             return -1;
         }
     });
+    if(req.body.name){
+        let Data = await sqlhelper.update('chating',{'IsRead':'2'},{'RecID':req.body.name,'IsRead':'0'}, (err, res) => {
+        });
+    }
     // console.log("ID--" + ID);
     res.send({Status:Data})
 })
 
 app.post('/AllContact', async (req, res) => {
-    // let where = `ORDER BY CASE WHEN UserId = '${req.body.UserId}' THEN 1 ELSE 2 END, UserId`;
+    // let where = `ORDER BY CASE WHEN UserID = '${req.body.UserID}' THEN 1 ELSE 2 END, UserID`;
     // let query = `select * from userlist where 1 ${where}`
-    let Unread = `(select count(*) from chating as c where c.RecID = '${req.body.UserId}' AND c.UserID = ul.UserId AND c.IsRead = '0')`;
-    let Allread = `(select count(*) from chating as c where ((c.RecID = '${req.body.UserId}' AND c.UserID = ul.UserId) OR (c.RecID = ul.UserId AND c.UserID = '${req.body.UserId}')))`;
-    let where = `AND ul.UserId != '${req.body.UserId}'`;
+    let Unread = `(select count(*) from chating as c where c.RecID = '${req.body.UserID}' AND c.UserID = ul.UserID AND (c.IsRead = '0' OR c.IsRead = '2'))`;
+    let Allread = `(select count(*) from chating as c where ((c.RecID = '${req.body.UserID}' AND c.UserID = ul.UserID) OR (c.RecID = ul.UserID AND c.UserID = '${req.body.UserID}')))`;
+    let where = `AND ul.UserID != '${req.body.UserID}'`;
     let having = ``;
     if(req.body.Search!=""){
         where += ` AND ul.Name like '%${req.body.Search}%'`;
     }else{
         having = `Having Allmessage > 0`
     }
-    // where += `ORDER BY CASE WHEN UserId = '${req.body.UserId}' THEN 1 ELSE 2 END, ChatID DESC`;
+    // where += `ORDER BY CASE WHEN UserID = '${req.body.UserID}' THEN 1 ELSE 2 END, ChatID DESC`;
     let query = `SELECT ul.*,${Unread} as TotalM,${Allread} as Allmessage,
-    IFNULL((select Message from chating as c where ((c.RecID = '${req.body.UserId}' AND c.UserID = ul.UserId) OR (c.RecID = ul.UserId AND c.UserID = '${req.body.UserId}')) ORDER by ChatID DESC LIMIT 1),'') as LastChat, 
-    (select ChatID from chating as c where ((c.RecID = '${req.body.UserId}' AND c.UserID = ul.UserId) OR (c.RecID = ul.UserId AND c.UserID = '${req.body.UserId}')) ORDER by ChatID DESC LIMIT 1) as ChatID
+    IFNULL((select Message from chating as c where ((c.RecID = '${req.body.UserID}' AND c.UserID = ul.UserID) OR (c.RecID = ul.UserID AND c.UserID = '${req.body.UserID}')) ORDER by ChatID DESC LIMIT 1),'') as LastChat, 
+    (select ChatID from chating as c where ((c.RecID = '${req.body.UserID}' AND c.UserID = ul.UserID) OR (c.RecID = ul.UserID AND c.UserID = '${req.body.UserID}')) ORDER by ChatID DESC LIMIT 1) as ChatID
     FROM userlist as ul  where 1 ${where} ${having} ORDER BY ChatID DESC`
     
     let Data = await sqlhelper.select(query, [], (err, res) => {
@@ -231,9 +235,13 @@ app.post('/updateread', async (req, res) => {
     // console.log(req.body);
     let SingleUserID = req.body.SingleUserID;
     let UserID = req.body.UserID;
-
+    let IsRead = '1';
+    if(req.body.IsRead){
+        IsRead = req.body.IsRead;
+    }
+    console.log("IsRead -->", IsRead);
     if(SingleUserID && SingleUserID!=0){
-        let Data = await sqlhelper.update('chating',{'IsRead':'1'},{'RecID':UserID,'UserID':SingleUserID}, (err, res) => {
+        let Data = await sqlhelper.update('chating',{'IsRead':IsRead},{'RecID':UserID,'UserID':SingleUserID}, (err, res) => {
             
         });
     }
@@ -241,9 +249,9 @@ app.post('/updateread', async (req, res) => {
 })
 
 app.post('/OnlineStatusChange', async (req, res) => {
-    let UserID = req.body.UserId;
+    let UserID = req.body.UserID;
     if(UserID){
-        let Data = await sqlhelper.update('userlist',req.body,{'UserId':UserID}, (err, res) => {
+        let Data = await sqlhelper.update('userlist',req.body,{'UserID':UserID}, (err, res) => {
             
         });
     }
@@ -258,7 +266,7 @@ io.on('connection', async (socket) => {
     socket.on('join', function(room) {
         socket.join(room);
         let joindata = {
-            UserId : room,
+            UserID : room,
             SocketID : socket.id,
             Status : '1'
         }
@@ -267,7 +275,7 @@ io.on('connection', async (socket) => {
     
     console.log('Connected...' ,socket.id); // x8WIv7-mJelg7on_ALbx
     // if(sockets['id']){
-    //     let Data = await sqlhelper.update('userlist',{'Status':'1',SocketID:socket.id},{'UserId':sockets['id']}, (err, res) => {
+    //     let Data = await sqlhelper.update('userlist',{'Status':'1',SocketID:socket.id},{'UserID':sockets['id']}, (err, res) => {
     //     });
     // }
     
@@ -332,6 +340,6 @@ DB.on('error', function(err) {
   console.log("DB ERROR : " + err);
 })
 
-// SELECT (select Message from chating as c where c.RecID = ul.UserId AND c.UserID = 2 ORDER by ChatID DESC LIMIT 1) as LastChat, (select ChatID from chating as c where c.RecID = ul.UserId AND c.UserID = 1 ORDER by ChatID DESC LIMIT 1) as ChatID, Name FROM `userlist` as ul ORDER by ChatID desc;
+// SELECT (select Message from chating as c where c.RecID = ul.UserID AND c.UserID = 2 ORDER by ChatID DESC LIMIT 1) as LastChat, (select ChatID from chating as c where c.RecID = ul.UserID AND c.UserID = 1 ORDER by ChatID DESC LIMIT 1) as ChatID, Name FROM `userlist` as ul ORDER by ChatID desc;
 
 
